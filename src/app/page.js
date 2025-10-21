@@ -2,6 +2,30 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Script from "next/script";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+// 사이드바 네비게이션 (활성 페이지 하이라이트)
+const NavButton = ({ href, icon: Icon, children }) => {
+  const pathname = usePathname();
+  const active = pathname === href;
+  return (
+    <Link
+      href={href}
+      className={[
+        "rounded-xl border border-slate-700/60",
+        "inline-flex items-center h-10 px-4",
+        active
+          ? "bg-slate-700 text-white"
+          : "text-slate-300 hover:text-white hover:bg-slate-800/60",
+      ].join(" ")}
+    >
+      {Icon ? <Icon className="w-4 h-4 mr-2" /> : null}
+      {children}
+    </Link>
+  );
+};
+
 import {
   AlertTriangle,
   Bell,
@@ -17,7 +41,7 @@ import {
   Settings,
   BarChart2,
   Server,
-  RefreshCw, // ⬅ 운영 모드 버튼 아이콘
+  RefreshCw, // 운영 모드 전환 아이콘
 } from "lucide-react";
 
 /* ===== 운영 모드 관련 토픽 ===== */
@@ -26,17 +50,17 @@ const TOPIC_CMD_MODE = "farm/line1/cmd/mode"; // 전환 명령(flow|ras)
 
 /* ----------------- 작은 UI 헬퍼들 ----------------- */
 const KPI = ({ label, value, unit, Icon }) => (
-  <div className="rounded-2xl border border-slate-800 bg-slate-900/40 text-slate-100 shadow-inner">
-    <div className="py-4 px-4 flex flex-col items-center text-center gap-1">
-      {Icon ? <Icon className="w-5 h-5 text-sky-300 mb-1" /> : null}
+  <div className="rounded-xl border border-slate-800 bg-slate-900/40 text-slate-100">
+    <div className="py-2.5 px-2.5 flex flex-col items-center text-center gap-0.5">
+      {Icon ? <Icon className="w-4.5 h-4.5 text-sky-300 mb-0.5" /> : null}
       <div className="leading-tight">
-        <div className="text-[11px] uppercase tracking-wider text-slate-400 whitespace-nowrap">
+        <div className="text-[10px] uppercase tracking-wider text-slate-400 whitespace-nowrap">
           {label}
         </div>
-        <div className="text-xl font-bold">
+        <div className="text-base font-bold">
           {value}
           {unit ? (
-            <span className="text-sm text-slate-400"> {unit}</span>
+            <span className="text-[12px] text-slate-400"> {unit}</span>
           ) : null}
         </div>
       </div>
@@ -44,19 +68,18 @@ const KPI = ({ label, value, unit, Icon }) => (
   </div>
 );
 
-/* Section: className 지원 + flex 레이아웃(내용이 높이를 채움) */
 const Section = ({ title, right, children, className = "" }) => (
   <div
-    className={`rounded-2xl border border-slate-800 bg-slate-900/30 text-slate-100 flex flex-col ${className}`}
+    className={`rounded-xl border border-slate-800 bg-slate-900/30 text-slate-100 flex flex-col ${className}`}
   >
-    <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0">
-      <div className="text-base font-semibold tracking-tight flex items-center gap-2 whitespace-nowrap">
+    <div className="px-2.5 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
+      <div className="text-[15px] font-semibold tracking-tight flex items-center gap-2 whitespace-nowrap">
         <span className="inline-block w-1.5 h-4 rounded-full bg-sky-400" />
         {title}
       </div>
       {right}
     </div>
-    <div className="p-4 flex-1">{children}</div>
+    <div className="p-2.5 flex-1">{children}</div>
   </div>
 );
 
@@ -92,18 +115,6 @@ const Button = ({
     </button>
   );
 };
-
-const Input = (props) => (
-  <input
-    {...props}
-    className={`w-full rounded-xl border border-slate-700 bg-slate-900/50 px-3 py-2 text-slate-100 outline-none focus:ring-2 focus:ring-sky-500 ${
-      props.className || ""
-    }`}
-  />
-);
-const Label = ({ children }) => (
-  <label className="text-xs text-slate-300">{children}</label>
-);
 
 const CCTV = ({ title, src }) => (
   <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
@@ -209,7 +220,6 @@ function useMqttLive() {
           ? parseFloat(value)
           : value;
 
-      // 운영 모드 상태 갱신
       if (topic === TOPIC_MODE) {
         const v = String(value).trim().toLowerCase();
         if (v === "flow" || v === "ras") return { ...prev, mode: v };
@@ -357,7 +367,7 @@ function useMqttLive() {
           () => !cancelled && setMqttStatus("reconnecting")
         );
         client.on("error", (e) => {
-          console.error("[MQTT] runtime error:", e);
+          console.error("[MQTT] runtime error]:", e);
           !cancelled && setMqttStatus("error");
         });
       } catch (e) {
@@ -397,7 +407,7 @@ export default function Page() {
   const [monitorTab, setMonitorTab] = useState("cctv");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 text-slate-100 min-w-[1100px]">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 text-slate-100">
       {/* MQTT 브라우저 번들 로드 (CDN) */}
       <Script
         src="https://unpkg.com/mqtt/dist/mqtt.min.js"
@@ -406,8 +416,8 @@ export default function Page() {
 
       {/* Top bar */}
       <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60 bg-slate-950/80 border-b border-slate-800">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="mx-auto max-w-none px-5 py-2.5 flex items-center gap-3">
+          <div className="flex items-center gap-3 mr-8">
             <div className="w-6 h-6 rounded bg-sky-500/80" />
             <div className="font-semibold">하이브리드 육상 양식 시스템</div>
           </div>
@@ -436,7 +446,7 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 grid grid-cols-12 gap-4">
+      <div className="mx-auto max-w-none px-5 py-4 grid grid-cols-12 gap-2">
         {/* Sidebar */}
         <div className="col-span-12 lg:col-span-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40">
@@ -444,19 +454,16 @@ export default function Page() {
               <div className="text-[11px] uppercase tracking-wider text-slate-400 mb-2">
                 메뉴
               </div>
-              <nav className="flex flex-col gap-1">
-                <Button variant="solid">
-                  <Gauge className="w-4 h-4 mr-2" />
+              <nav className="flex flex-col gap-2">
+                <NavButton href="/" icon={Gauge}>
                   모니터링
-                </Button>
-                <Button variant="ghost">
-                  <Server className="w-4 h-4 mr-2" />
+                </NavButton>
+                <NavButton href="/control" icon={Server}>
                   통합제어
-                </Button>
-                <Button variant="ghost">
-                  <BarChart2 className="w-4 h-4 mr-2" />
+                </NavButton>
+                <NavButton href="/sim" icon={BarChart2}>
                   시뮬레이션
-                </Button>
+                </NavButton>
               </nav>
             </div>
           </div>
@@ -465,10 +472,10 @@ export default function Page() {
         {/* Main */}
         <div className="col-span-12 lg:col-span-10 space-y-4">
           {/* Row 1 */}
-          <div className="grid grid-cols-12 gap-4 items-stretch">
+          <div className="grid grid-cols-12 gap-3 items-stretch">
             <div className="col-span-12 lg:col-span-6">
               <Section title="기상" className="h-full">
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 justify-items-center">
+                <div className="grid grid-cols-6 gap-2">
                   <KPI label="조회" value={m.rain} unit="mm" Icon={CloudRain} />
                   <KPI label="파고" value={m.wave} unit="m" Icon={Waves} />
                   <KPI
@@ -486,7 +493,6 @@ export default function Page() {
 
             <div className="col-span-12 sm:col-span-6 lg:col-span-4">
               <Section title="양식장 운영 정보" className="h-full">
-                {/* 2 → 3 열로 변경하고 운영 모드 카드 추가 */}
                 <div className="grid grid-cols-3 gap-3 h-full">
                   <KPI
                     label="전력량"
@@ -504,7 +510,7 @@ export default function Page() {
                   {/* 운영 모드 카드 */}
                   <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-1 flex flex-col items-center justify-center">
                     <div className="text-xs text-slate-400 mb-1">운영 모드</div>
-                    <div className="text-2x3 font-extrabold tracking-tight mb-">
+                    <div className="text-2x font-extrabold tracking-tight mb-">
                       {m.mode === "flow" ? "유수식" : "RAS"}
                     </div>
                     <Button
@@ -515,7 +521,7 @@ export default function Page() {
                         publishMode(m.mode === "flow" ? "ras" : "flow")
                       }
                     >
-                      {m.mode === "flow" ? "전환" : "전환"}
+                      전환
                     </Button>
                   </div>
                 </div>
@@ -552,7 +558,7 @@ export default function Page() {
           <div className="grid grid-cols-12 gap-4 items-stretch">
             <div className="col-span-12 lg:col-span-7">
               <Section title="양식장 계통도" className="h-full">
-                <div className="grid grid-cols-3 gap-3 text-slate-300 text-sm">
+                <div className="grid grid-cols-3 gap-2 text-slate-300 text-sm">
                   {[
                     { name: "수중펌프 1", power: "150 마력" },
                     { name: "수중펌프 2", power: "150 마력" },
@@ -677,11 +683,6 @@ export default function Page() {
             )}
           </Section>
 
-          {/* Row 4 */}
-          <Section title="임계값/제어">
-            <ThresholdEditor />
-          </Section>
-
           <div className="h-4" />
         </div>
       </div>
@@ -689,62 +690,6 @@ export default function Page() {
       <footer className="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
         © 2025 Aquaculture UI Mock (JS). Replace mock with MQTT live data.
       </footer>
-    </div>
-  );
-}
-
-/* ---------- 임계값 에디터 ---------- */
-function ThresholdEditor() {
-  const [temp, setTemp] = useState({ min: 20, max: 25 });
-  const [ph, setPh] = useState({ min: 7.2, max: 7.8 });
-  const [doMin, setDoMin] = useState(6.0);
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      <div>
-        <Label>수온 범위 (°C)</Label>
-        <div className="mt-1 flex gap-2">
-          <Input
-            value={temp.min}
-            onChange={(e) =>
-              setTemp((p) => ({ ...p, min: Number(e.target.value) }))
-            }
-          />
-          <Input
-            value={temp.max}
-            onChange={(e) =>
-              setTemp((p) => ({ ...p, max: Number(e.target.value) }))
-            }
-          />
-        </div>
-      </div>
-      <div>
-        <Label>pH 범위</Label>
-        <div className="mt-1 flex gap-2">
-          <Input
-            value={ph.min}
-            onChange={(e) =>
-              setPh((p) => ({ ...p, min: Number(e.target.value) }))
-            }
-          />
-          <Input
-            value={ph.max}
-            onChange={(e) =>
-              setPh((p) => ({ ...p, max: Number(e.target.value) }))
-            }
-          />
-        </div>
-      </div>
-      <div>
-        <Label>용존산소 하한 (mg/L)</Label>
-        <Input
-          className="mt-1"
-          value={doMin}
-          onChange={(e) => setDoMin(Number(e.target.value))}
-        />
-      </div>
-      <div className="col-span-3">
-        <Button className="w-full">임계값 저장 (MQTT Retain)</Button>
-      </div>
     </div>
   );
 }
