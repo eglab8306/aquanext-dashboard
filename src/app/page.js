@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import {
   AlertTriangle,
@@ -17,7 +17,12 @@ import {
   Settings,
   BarChart2,
   Server,
+  RefreshCw, // ⬅ 운영 모드 버튼 아이콘
 } from "lucide-react";
+
+/* ===== 운영 모드 관련 토픽 ===== */
+const TOPIC_MODE = "farm/line1/mode"; // 현재 모드(flow|ras), retain 권장
+const TOPIC_CMD_MODE = "farm/line1/cmd/mode"; // 전환 명령(flow|ras)
 
 /* ----------------- 작은 UI 헬퍼들 ----------------- */
 const KPI = ({ label, value, unit, Icon }) => (
@@ -144,6 +149,7 @@ function useMqttLive() {
     wind: 3.9,
     powerTotal: 53282,
     mortality: 12.3,
+    mode: "flow", // 'flow' = 유수식, 'ras' = RAS
     alerts: { threshold: 3, comms: 2 },
     tanks: [
       {
@@ -172,6 +178,7 @@ function useMqttLive() {
   }));
   const [mqttStatus, setMqttStatus] = useState("disconnected");
   const [lastMsg, setLastMsg] = useState("");
+  const clientRef = useRef(null); // publish 위해 저장
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -201,6 +208,13 @@ function useMqttLive() {
         typeof value === "string" && !isNaN(Number(value))
           ? parseFloat(value)
           : value;
+
+      // 운영 모드 상태 갱신
+      if (topic === TOPIC_MODE) {
+        const v = String(value).trim().toLowerCase();
+        if (v === "flow" || v === "ras") return { ...prev, mode: v };
+        return prev;
+      }
 
       if (topic.startsWith("farm/line1/env/")) {
         const key = topic.split("/")[3];
@@ -319,9 +333,10 @@ function useMqttLive() {
         const mqtt = await waitMqtt();
         const c = await connectWithFallback(mqtt);
         client = c;
+        clientRef.current = c;
 
         client.subscribe(
-          ["farm/line1/env/#", "farm/line1/tanks/+/+"],
+          ["farm/line1/env/#", "farm/line1/tanks/+/+", TOPIC_MODE],
           { qos: 0 },
           (err) => {
             if (err) console.error("[MQTT] subscribe error:", err);
@@ -356,15 +371,28 @@ function useMqttLive() {
       try {
         client?.end(true);
       } catch {}
+      clientRef.current = null;
     };
   }, []);
 
-  return { data, mqttStatus, lastMsg };
+  // UI에서 호출할 퍼블리시(모드 전환) 함수
+  const publishMode = (next /* 'flow' | 'ras' */) => {
+    const c = clientRef.current;
+    if (!c) return;
+    try {
+      c.publish(TOPIC_CMD_MODE, next, { qos: 0, retain: false }); // 명령 발행
+      setData((p) => ({ ...p, mode: next })); // 낙관적 업데이트
+    } catch (e) {
+      console.warn("[MQTT] publishMode failed:", e?.message || e);
+    }
+  };
+
+  return { data, mqttStatus, lastMsg, publishMode };
 }
 
 /* ================== 페이지 ================== */
 export default function Page() {
-  const { data: m, mqttStatus, lastMsg } = useMqttLive();
+  const { data: m, mqttStatus, lastMsg, publishMode } = useMqttLive();
   const [tankTab, setTankTab] = useState("A5");
   const [monitorTab, setMonitorTab] = useState("cctv");
 
@@ -436,7 +464,7 @@ export default function Page() {
 
         {/* Main */}
         <div className="col-span-12 lg:col-span-10 space-y-4">
-          {/* Row 1 — 동일 높이 */}
+          {/* Row 1 */}
           <div className="grid grid-cols-12 gap-4 items-stretch">
             <div className="col-span-12 lg:col-span-6">
               <Section title="기상" className="h-full">
@@ -458,7 +486,8 @@ export default function Page() {
 
             <div className="col-span-12 sm:col-span-6 lg:col-span-4">
               <Section title="양식장 운영 정보" className="h-full">
-                <div className="grid grid-cols-2 gap-3 h-full">
+                {/* 2 → 3 열로 변경하고 운영 모드 카드 추가 */}
+                <div className="grid grid-cols-3 gap-3 h-full">
                   <KPI
                     label="전력량"
                     value={m.powerTotal?.toLocaleString?.() ?? m.powerTotal}
@@ -471,6 +500,24 @@ export default function Page() {
                     unit="%"
                     Icon={ShieldAlert}
                   />
+
+                  {/* 운영 모드 카드 */}
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-1 flex flex-col items-center justify-center">
+                    <div className="text-xs text-slate-400 mb-1">운영 모드</div>
+                    <div className="text-2x3 font-extrabold tracking-tight mb-">
+                      {m.mode === "flow" ? "유수식" : "RAS"}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={RefreshCw}
+                      onClick={() =>
+                        publishMode(m.mode === "flow" ? "ras" : "flow")
+                      }
+                    >
+                      {m.mode === "flow" ? "전환" : "전환"}
+                    </Button>
+                  </div>
                 </div>
               </Section>
             </div>
@@ -501,7 +548,7 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Row 2 — 동일 높이: items-stretch + 각 섹션 h-full */}
+          {/* Row 2 */}
           <div className="grid grid-cols-12 gap-4 items-stretch">
             <div className="col-span-12 lg:col-span-7">
               <Section title="양식장 계통도" className="h-full">
