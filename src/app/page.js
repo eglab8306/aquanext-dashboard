@@ -460,9 +460,6 @@ export default function Page() {
                 <NavButton href="/control" icon={Server}>
                   통합제어
                 </NavButton>
-                <NavButton href="/sim" icon={BarChart2}>
-                  시뮬레이션
-                </NavButton>
               </nav>
             </div>
           </div>
